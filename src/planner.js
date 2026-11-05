@@ -32,6 +32,20 @@ const LINK_TYPE_NOTE_PAGE = 0;
 const LINK_STYLE_UNDERLINE = 0;
 const MARK_TEXT = '✓';
 
+// sn-plugin-lib >= 0.2 gates file access behind runtime permissions.
+// Older hosts don't expose these methods; treat that as "granted".
+async function ensurePermissions(perms = ['FILE:READ', 'FILE:WRITE', 'FILE:DELETE']) {
+  if (typeof PluginManager.hasPermission !== 'function') return;
+  for (const p of perms) {
+    const name = `plugin.permission.${p}`;
+    let has = 0;
+    try { has = await PluginManager.hasPermission(name); } catch { return; }
+    if (has === 1) continue;
+    const r = await PluginManager.requestPermission(name, 'Planner needs file access to create and update the planner note.');
+    if (r !== 1 && r !== 2) throw new Error(`File permission (${p}) was not granted`);
+  }
+}
+
 // Known page sizes by PluginManager.getDeviceType() (used only as a first
 // guess; the real size is read back from the note and templates re-rendered
 // if it differs).
@@ -203,6 +217,7 @@ async function insertPageLinks(model, page, notePath, W, H) {
  * Returns { notePath, pages }.
  */
 export async function createPlanner(year, onProgress = () => {}) {
+  await ensurePermissions();
   const model = buildYear(year);
   const total = model.pages.length;
   const { noteDir, styleDir } = await resolveRoots();
@@ -307,6 +322,7 @@ async function pageElements(notePath, page) {
  * (its 6 grid weeks and their days) plus that month's parents.
  */
 export async function syncMarks(scope, onProgress = () => {}) {
+  await ensurePermissions();
   const { notePath, model, W, H } = await currentPlanner();
   const { byKey, pages } = model;
 
