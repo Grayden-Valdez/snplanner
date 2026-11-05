@@ -1,0 +1,59 @@
+name: Build plugin
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platforms;android-35 build-tools;35.0.0 ndk;27.1.12297006 platform-tools
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Model / layout checks
+        run: npm test
+
+      - name: Render layout previews
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq python3-pil fonts-dejavu-core >/dev/null
+          npm run preview
+
+      - name: Build .snplg
+        run: ./buildPlugin.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snplanner-snplg
+          path: build/outputs/snplanner.snplg
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: layout-previews
+          path: build/preview/*.png
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/outputs/snplanner.snplg
