@@ -2,9 +2,15 @@
   "name": "Planner",
   "desc": "Generates a linked yearly planner note (year / quarter / month / week / day pages) and marks days that contain handwriting on the overview pages.",
   "iconPath": "./assets/icon.png",
-  "versionName": "0.2.0",
-  "versionCode": "2",
+  "versionName": "0.2.1",
+  "versionCode": "3",
   "pluginID": "qmcnpi0dip9265w6",
   "pluginKey": "snplanner",
-  "jsMainPath": "index"
+  "jsMainPath": "index",
+  "uses-permissions": [
+    "plugin.permission.FILE:READ",
+    "plugin.permission.FILE:WRITE",
+    "plugin.permission.FILE:DELETE"
+  ],
+  "author": "Grayden Valdez (coded with Claude)"
 }
