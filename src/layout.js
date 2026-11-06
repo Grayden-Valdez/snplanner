@@ -364,4 +364,47 @@ function layoutPage(model, page, W = DESIGN_W, H = DESIGN_H) {
   return pg.result();
 }
 
-module.exports = { layoutPage, DESIGN_W, DESIGN_H, textWidth };
+/**
+ * Link style test page. Draws five labelled boxes; the caller inserts one
+ * link per box using the variant described. Returns { ops, boxes } where
+ * boxes = [{ id, label, rect (page px), textRect (page px), fontSize }].
+ */
+function layoutLinkTest(W = DESIGN_W, H = DESIGN_H) {
+  const pg = new Page(W, H);
+  pg.text(DESIGN_W / 2, 150, 'LINK STYLE TEST', 72, { align: 'center', bold: true });
+  pg.text(DESIGN_W / 2, 250, 'Tap inside each box. Every link jumps to page 2. Note which look/tap best.', 34, { align: 'center' });
+  const variants = [
+    { id: 'A', label: 'A  text link, underline  (current)', text: 'Jump →' },
+    { id: 'B', label: 'B  text link, solid border', text: 'Jump →' },
+    { id: 'C', label: 'C  empty text, underline, whole box', text: '' },
+    { id: 'D', label: 'D  empty text, solid border, whole box', text: '' },
+    { id: 'E', label: 'E  empty text, dashed border, whole box', text: '' },
+    { id: 'F', label: 'F  stroke-category link, whole box', text: '' },
+  ];
+  const boxW = DESIGN_W - 2 * MARGIN, boxH = 260, gap = 50, y0 = 380;
+  const boxes = [];
+  variants.forEach((v, i) => {
+    const y = y0 + i * (boxH + gap);
+    pg.rect(MARGIN, y, boxW, boxH, 3, null);
+    pg.text(MARGIN + 30, y + 24, v.label, 40, { bold: true });
+    // Printed words that an "empty text" link would sit over.
+    const tx = MARGIN + 30, ty = y + 130, tsize = 56;
+    pg.text(tx, ty, 'June 2027  →  tap me', tsize);
+    const tw = textWidth('June 2027  →  tap me', tsize) + 20;
+    boxes.push({
+      id: v.id, text: v.text, fontSize: pg.S(tsize),
+      rect: { left: pg.S(MARGIN), top: pg.S(y), right: pg.S(MARGIN + boxW), bottom: pg.S(y + boxH) },
+      textRect: { left: pg.S(tx), top: pg.S(ty), right: pg.S(tx + tw), bottom: pg.S(ty + tsize * 1.4) },
+    });
+  });
+  return { ops: pg.ops, boxes };
+}
+
+function layoutLinkTestTarget(W = DESIGN_W, H = DESIGN_H) {
+  const pg = new Page(W, H);
+  pg.text(DESIGN_W / 2, 900, 'You jumped here.', 110, { align: 'center', bold: true });
+  pg.text(DESIGN_W / 2, 1060, 'Swipe back to page 1 and try the next box.', 44, { align: 'center' });
+  return { ops: pg.ops };
+}
+
+module.exports = { layoutPage, layoutLinkTest, layoutLinkTestTarget, DESIGN_W, DESIGN_H, textWidth };

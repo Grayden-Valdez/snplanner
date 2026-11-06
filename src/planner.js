@@ -25,7 +25,7 @@ import {
   PluginNoteAPI,
 } from 'sn-plugin-lib';
 import { buildYear, monthGrid } from './calendar';
-import { layoutPage, DESIGN_W, DESIGN_H } from './layout';
+import { layoutPage, layoutLinkTest, layoutLinkTestTarget, DESIGN_W, DESIGN_H } from './layout';
 
 const TYPE_LINK = 600;
 const TYPE_STROKE = 0;
@@ -208,18 +208,18 @@ async function insertPageWithTemplate(notePath, pageIndex, tplPath) {
 }
 
 /** Builds a link Element for insertElements. */
-async function makeLink(pageIndex, rect, fontSize, text, destPage, notePath) {
+async function makeLink(pageIndex, rect, fontSize, text, destPage, notePath, { style = LINK_STYLE_UNDERLINE, category = 0 } = {}) {
   const el = unwrap(await PluginCommAPI.createElement(TYPE_LINK), 'createElement(link)');
   el.type = TYPE_LINK;
   el.pageNum = pageIndex;
   el.link = {
-    category: 0,
+    category,
     X: rect.left,
     Y: rect.top,
     width: rect.right - rect.left,
     height: rect.bottom - rect.top,
     page: pageIndex,
-    style: LINK_STYLE_UNDERLINE,
+    style,
     linkType: LINK_TYPE_NOTE_PAGE,
     destPath: notePath,
     destPage,
@@ -246,6 +246,69 @@ async function insertPageLinks(model, page, notePath, W, H) {
   } finally {
     try { PluginCommAPI.clearElementCache(); } catch { /* best effort */ }
   }
+}
+
+/**
+ * Creates Note/Planner link test.note: page 0 has one link per style
+ * variant, all jumping to page 1. Used to pick the link style on-device.
+ */
+export async function createLinkTest() {
+  await log('createLinkTest start');
+  await ensurePermissions();
+  const { noteDir, styleDir } = await resolveRoots();
+  const notePath = `${noteDir}/Planner link test.note`;
+  if (await Native().exists(notePath)) {
+    throw new Error('"Planner link test.note" already exists in Note — delete it first');
+  }
+  const tplDir = `${styleDir}/Planner link test`;
+  await Native().mkdirs(tplDir);
+  let devType = 5;
+  try { devType = await PluginManager.getDeviceType(); } catch { /* ignore */ }
+  let { width: W, height: H } = DEVICE_SIZES[devType] || DEVICE_SIZES[5];
+
+  const tpl0 = `${tplDir}/linktest-000.png`, tpl1 = `${tplDir}/linktest-001.png`;
+  let { ops, boxes } = layoutLinkTest(W, H);
+  await NativeModules.PlannerRender.renderPng(ops, W, H, tpl0);
+  let created = false, lastErr = '';
+  for (const template of [tpl0, templateName(tpl0)]) {
+    const res = await PluginFileAPI.createNote({ notePath, template, mode: 0, isPortrait: true });
+    if (res && res.success && res.result !== false) { created = true; break; }
+    lastErr = (res && res.error && res.error.message) || 'createNote failed';
+  }
+  if (!created) throw new Error(`createNote: ${lastErr}`);
+  const size = unwrap(await PluginFileAPI.getPageSize(notePath, 0), 'getPageSize');
+  if (size.width !== W || size.height !== H) {
+    W = size.width; H = size.height;
+    ({ ops, boxes } = layoutLinkTest(W, H));
+    await NativeModules.PlannerRender.renderPng(ops, W, H, tpl0);
+  }
+  await NativeModules.PlannerRender.renderPng(layoutLinkTestTarget(W, H).ops, W, H, tpl1);
+  await insertPageWithTemplate(notePath, 1, tpl1);
+
+  const V = {
+    A: (b) => makeLink(0, b.textRect, b.fontSize, 'Jump →', 1, notePath, { style: 0 }),
+    B: (b) => makeLink(0, b.textRect, b.fontSize, 'Jump →', 1, notePath, { style: 1 }),
+    C: (b) => makeLink(0, b.rect, b.fontSize, '', 1, notePath, { style: 0 }),
+    D: (b) => makeLink(0, b.rect, b.fontSize, '', 1, notePath, { style: 1 }),
+    E: (b) => makeLink(0, b.rect, b.fontSize, '', 1, notePath, { style: 2 }),
+    F: (b) => makeLink(0, b.rect, b.fontSize, '', 1, notePath, { style: 1, category: 1 }),
+  };
+  const results = [];
+  for (const b of boxes) {
+    try {
+      const el = await V[b.id](b);
+      const r = await PluginFileAPI.insertElements(notePath, 0, [el]);
+      const ok = r && r.success && r.result !== false;
+      await log(`variant ${b.id}: ${ok ? 'inserted' : 'FAILED ' + JSON.stringify(r)}`);
+      results.push(`${b.id}:${ok ? 'ok' : 'fail'}`);
+    } catch (e) {
+      await log(`variant ${b.id} threw: ${e}`);
+      results.push(`${b.id}:err`);
+    } finally {
+      try { PluginCommAPI.clearElementCache(); } catch { /* ignore */ }
+    }
+  }
+  return { notePath, results: results.join(' ') };
 }
 
 /**

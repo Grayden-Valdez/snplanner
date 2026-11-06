@@ -21,6 +21,7 @@ import * as planner from './src/planner';
 
 type Progress = (stage: string, done: number, total: number) => void;
 const createPlanner: (year: number, p: Progress) => Promise<{ notePath: string; pages: number }> = planner.createPlanner as any;
+const createLinkTest: () => Promise<{ notePath: string; results: string }> = planner.createLinkTest as any;
 const readLog: () => Promise<string> = planner.readLog as any;
 const clearLog: () => Promise<void> = planner.clearLog as any;
 const logLine: (m: string) => Promise<void> = planner.log as any;
@@ -69,6 +70,12 @@ function App(): React.JSX.Element {
     });
   };
 
+  const onLinkTest = () =>
+    run('Creating link test', async () => {
+      const r = await createLinkTest();
+      return `Link test note created (${r.results}): ${r.notePath}`;
+    });
+
   const onSync = (scope: 'month' | 'all') =>
     run('Syncing ✓ marks', async () => {
       const r = await syncMarks(scope, progress);
@@ -115,6 +122,10 @@ function App(): React.JSX.Element {
         <Text style={styles.hint}>
           Scans day pages for handwriting and shows a ✓ for each on the week, month, quarter and year pages. Tap a ✓ to jump to that day.
         </Text>
+      </View>
+
+      <View style={styles.row}>
+        <Btn label="Link style test" onPress={onLinkTest} />
       </View>
 
       {status ? <Text style={styles.status}>{status}</Text> : null}
