@@ -74,7 +74,10 @@ class Page {
   circle(cx, cy, r, lw = 2) {
     this.ops.push({ op: 'circle', cx: this.S(cx), cy: this.S(cy), r: this.S(r), lw: Math.max(1, this.S(lw)) });
   }
-  /** Text link. x,y = top-left of the link box in design units. Returns box width (design units). */
+  /**
+   * Printed label + invisible link over its own text box.
+   * x,y = top-left in design units. Returns box width (design units).
+   */
   link(x, y, text, size, dest, { align = 'left', bold = false } = {}) {
     const pad = 10;
     const w = textWidth(text, size) + pad * 2;
@@ -82,12 +85,20 @@ class Page {
     let left = x;
     if (align === 'center') left = x - w / 2;
     if (align === 'right') left = x - w;
-    this.links.push({
-      text, dest, bold,
-      fontSize: this.S(size),
-      rect: { left: this.S(left), top: this.S(y), right: this.S(left + w), bottom: this.S(y + h) },
-    });
+    this.text(left + pad, y + size * 0.2, text, size, { bold });
+    this.boxLink(left, y, w, h, dest);
     return w;
+  }
+  /**
+   * Invisible link covering a box (design units). The template draws
+   * whatever is inside the box; Supernote shows only its clip badge at the
+   * box's bottom-right corner.
+   */
+  boxLink(x, y, w, h, dest) {
+    this.links.push({
+      text: '', dest, bold: false, fontSize: this.S(24),
+      rect: { left: this.S(x), top: this.S(y), right: this.S(x + w), bottom: this.S(y + h) },
+    });
   }
   /** Reserve a ✓ slot for a day. x,y = top-left, size = box side (design units). */
   mark(dateKey, x, y, size) {
@@ -123,21 +134,25 @@ function navBand(pg, model, page) {
 
   const y = NAV_TOP;
   pg.rect(MARGIN, y, DESIGN_W - 2 * MARGIN, NAV_H, 2, null);
-  let x = MARGIN + 18;
-  const ty = y + (NAV_H - NAV_FONT * 1.4) / 2;
+  const pad = 18, ty = y + (NAV_H - NAV_FONT * 1.4) / 2;
+  const tile = (left, it) => {
+    const w = textWidth(it.text, NAV_FONT) + pad * 2 + 40; // room for the clip badge
+    pg.text(left + pad, ty + NAV_FONT * 0.2, it.text, NAV_FONT);
+    pg.boxLink(left, y, w, NAV_H, it.dest);
+    return w;
+  };
+  let x = MARGIN;
   items.forEach((it, i) => {
-    const w = pg.link(x, ty, it.text, NAV_FONT, it.dest);
-    x += w + 18;
+    x += tile(x, it);
     if (i < items.length - 1 || right.length) pg.line(x, y + 12, x, y + NAV_H - 12, 2);
-    x += 18;
   });
   // prev/next right-aligned
-  let rx = DESIGN_W - MARGIN - 18;
+  let rx = DESIGN_W - MARGIN;
   for (let i = right.length - 1; i >= 0; i--) {
-    const w = pg.link(rx, ty, right[i].text, NAV_FONT, right[i].dest, { align: 'right' });
-    rx -= w + 18;
+    const w = textWidth(right[i].text, NAV_FONT) + pad * 2 + 40;
+    rx -= w;
+    tile(rx, right[i]);
     if (i > 0) pg.line(rx, y + 12, rx, y + NAV_H - 12, 2);
-    rx -= 18;
   }
 }
 
@@ -153,9 +168,9 @@ function miniMonth(pg, model, month, x, y, w, h, { titleSize, headSize, numSize,
   const headH = headSize * 1.6;
   const cellH = (h - titleH - headH) / 6;
 
-  // title
-  if (link) pg.link(x + w / 2, y, cal.MONTH_NAMES[month].toUpperCase(), titleSize, `M${month}`, { align: 'center', bold: true });
-  else pg.text(x + w / 2, y + titleSize * 0.2, cal.MONTH_NAMES[month].toUpperCase(), titleSize, { align: 'center', bold: true });
+  // title; the whole mini-month box is one link to the month page
+  pg.text(x + w / 2, y + titleSize * 0.2, cal.MONTH_NAMES[month].toUpperCase(), titleSize, { align: 'center', bold: true });
+  if (link) pg.boxLink(x, y, w, h, `M${month}`);
 
   const gy = y + titleH;
   // header
@@ -251,13 +266,17 @@ function layoutMonth(pg, model, page) {
 
   rows.forEach((row, r) => {
     const ry = top + cellH * r;
-    if (row.weekKey) pg.link(x + wkW / 2, ry + 10, String(row.week), 36, row.weekKey, { align: 'center', bold: true });
+    if (row.weekKey) {
+      pg.text(x + wkW / 2, ry + 16, String(row.week), 36, { align: 'center', bold: true });
+      pg.boxLink(x, ry, wkW, cellH, row.weekKey);
+    }
     row.cells.forEach((cell, c) => {
       const cx = x + wkW + cellW * c;
-      // Every cell links to its day page (spill days too, if they exist).
+      // Every cell is one link to its day page (spill days too, if they exist).
       if (model.byKey[cell.key]) {
-        pg.link(cx + 6, ry + 6, String(cell.day), 30, cell.key);
-        pg.mark(cell.key, cx + cellW - 54, ry + cellH - 54, 48);
+        pg.text(cx + 12, ry + 10, String(cell.day), 30, { gray: cell.inMonth ? 0 : GRAY_TEXT });
+        pg.boxLink(cx, ry, cellW, cellH, cell.key);
+        pg.mark(cell.key, cx + 8, ry + cellH - 56, 48);
       } else {
         pg.text(cx + 14, ry + 10, String(cell.day), 30, { gray: GRAY_TEXT });
       }
@@ -293,8 +312,9 @@ function layoutWeek(pg, model, page) {
     if (dayKey) {
       const d = model.byKey[dayKey];
       const dow = d.date.getUTCDay();
-      pg.link(x + 10, y + 9, `${cal.DAY_NAMES[dow]} ${d.date.getUTCDate()}`, 34, dayKey, { bold: true });
-      pg.mark(dayKey, x + w - 58, y + 8, 48);
+      pg.text(x + 14, y + 14, `${cal.DAY_NAMES[dow]} ${d.date.getUTCDate()}`, 34, { bold: true });
+      pg.boxLink(x, y, w, headH, dayKey);
+      pg.mark(dayKey, x + w - 110, y + 8, 48);
     } else {
       pg.text(x + 14, y + 14, 'NOTES', 34, { bold: true });
     }

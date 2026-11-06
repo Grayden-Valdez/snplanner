@@ -17,10 +17,10 @@ Built from the scaffold of [jpmoo/compass](https://github.com/jpmoo/compass).
 
 | Page kind | Count | Links on the page |
 |---|---|---|
-| Year at a glance | 1 | Q1–Q4, every month title |
+| Year at a glance | 1 | Q1–Q4, each whole mini-month box |
 | Quarter | 4 | ‹ prev / next › quarter, year, each month title |
-| Month | 12 | ‹ prev / next › month, quarter, year, every day number, every week number; To-do's / Notes below |
-| Week (Sunday start) | 52–54 | ‹ prev / next › week, month, quarter, year, each day heading |
+| Month | 12 | ‹ prev / next › month, quarter, year, every whole day cell, every week cell; To-do's / Notes below |
+| Week (Sunday start) | 52–54 | ‹ prev / next › week, month, quarter, year, each day header band |
 | Day | 7 per week | ‹ prev / next › day, week, month, quarter, year; To-do's, Notes, 7am–7pm schedule, gratitude |
 
 Weeks follow each other chronologically with their seven day pages right
@@ -95,3 +95,12 @@ npm install
   factors in `textWidth()` in `src/layout.js`.
 - Templates total roughly 50–80 MB per planner year.
 - Not yet tested on hardware — please report what you see.
+
+## Link appearance
+
+Every link is an invisible hit area covering its whole box (nav tile, mini-month,
+day cell, day header). The words are printed by the page template; Supernote
+draws only its small clip badge at the box's bottom-right corner. Year-page day
+cells are too small for a badge each, so there the mini-month box is the link.
+✓ marks are plain text elements (no badge). Picked on-device with the plugin's
+"Link style test" button.

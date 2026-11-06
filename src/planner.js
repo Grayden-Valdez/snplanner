@@ -28,6 +28,7 @@ import { buildYear, monthGrid } from './calendar';
 import { layoutPage, layoutLinkTest, layoutLinkTestTarget, DESIGN_W, DESIGN_H } from './layout';
 
 const TYPE_LINK = 600;
+const TYPE_TEXT = 500;
 const TYPE_STROKE = 0;
 const LINK_TYPE_NOTE_PAGE = 0;
 const LINK_STYLE_UNDERLINE = 0;
@@ -230,6 +231,42 @@ async function makeLink(pageIndex, rect, fontSize, text, destPage, notePath, { s
     controlTrailNums: [],
   };
   return el;
+}
+
+/** Builds a plain ✓ text element (no link, so no clip badge). */
+async function makeMark(pageIndex, rect) {
+  const el = unwrap(await PluginCommAPI.createElement(TYPE_TEXT), 'createElement(text)');
+  el.type = TYPE_TEXT;
+  el.pageNum = pageIndex;
+  el.textBox = {
+    fontSize: rect.fontSize,
+    fontPath: null,
+    textContentFull: MARK_TEXT,
+    textRect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
+    textDigestData: null,
+    textAlign: 1,
+    textBold: 1,
+    textItalics: 0,
+    textFrameWidthType: 0,
+    textFrameStyle: 0,
+    textEditable: 0,
+  };
+  return el;
+}
+
+function isMarkEl(e) {
+  return !!(e && e.type === TYPE_TEXT && e.textBox && e.textBox.textContentFull === MARK_TEXT);
+}
+
+/** Matches an existing ✓ text element to the mark slot it sits in. */
+function markSlotKey(e, marks) {
+  const r = e.textBox.textRect || {};
+  let best = null, bestD = Infinity;
+  for (const [key, m] of Object.entries(marks)) {
+    const d = Math.abs((r.left || 0) - m.left) + Math.abs((r.top || 0) - m.top);
+    if (d < bestD) { bestD = d; best = key; }
+  }
+  return bestD <= 40 ? best : null;
 }
 
 async function insertPageLinks(model, page, notePath, W, H) {
@@ -478,10 +515,15 @@ export async function syncMarks(scope, onProgress = () => {}) {
       const parent = parentPages[i];
       const { marks } = layoutPage(model, parent, W, H);
       const els = await pageElements(notePath, parent.index);
-      const existing = new Map(); // destPage -> numInPage
+      const existing = new Map(); // dateKey -> numInPage
       for (const e of els) {
-        if (e && e.type === TYPE_LINK && e.link && e.link.showText === MARK_TEXT) {
-          existing.set(e.link.destPage, e.numInPage);
+        if (isMarkEl(e)) {
+          const k = markSlotKey(e, marks);
+          if (k) existing.set(k, e.numInPage);
+        } else if (e && e.type === TYPE_LINK && e.link && e.link.showText === MARK_TEXT) {
+          // legacy link-style mark from an older build: treat as a mark for its dest day
+          const day = Object.values(byKey).find((pg) => pg.index === e.link.destPage);
+          if (day) existing.set(day.key, e.numInPage);
         }
       }
       const toAdd = [];
@@ -490,9 +532,9 @@ export async function syncMarks(scope, onProgress = () => {}) {
         const day = byKey[dateKey];
         if (!day) continue;
         const want = inked.has(dateKey);
-        const has = existing.has(day.index);
-        if (want && !has) toAdd.push(await makeLink(parent.index, rect, rect.fontSize, MARK_TEXT, day.index, notePath));
-        if (!want && has && (scope === 'all' || dayPages.includes(day))) toDelete.push(existing.get(day.index));
+        const has = existing.has(dateKey);
+        if (want && !has) toAdd.push(await makeMark(parent.index, rect));
+        if (!want && has && (scope === 'all' || dayPages.includes(day))) toDelete.push(existing.get(dateKey));
       }
       if (toDelete.length) {
         unwrap(await PluginFileAPI.deleteElements(notePath, parent.index, toDelete), `deleteElements(${parent.index})`);

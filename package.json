@@ -1,6 +1,6 @@
 {
   "name": "snplanner",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "description": "Supernote plugin: linked yearly planner (year/quarter/month/week/day) with ✓ marks for days that have notes.",
   "private": true,
   "scripts": {
