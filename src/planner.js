@@ -40,9 +40,11 @@ async function ensurePermissions(perms = ['FILE:READ', 'FILE:WRITE', 'FILE:DELET
   for (const p of perms) {
     const name = `plugin.permission.${p}`;
     let has = 0;
-    try { has = await PluginManager.hasPermission(name); } catch { return; }
+    try { has = await PluginManager.hasPermission(name); } catch (e) { await log(`hasPermission(${p}) threw: ${e}`); return; }
+    await log(`hasPermission(${p}) = ${has}`);
     if (has === 1) continue;
     const r = await PluginManager.requestPermission(name, 'Planner needs file access to create and update the planner note.');
+    await log(`requestPermission(${p}) = ${r}`);
     if (r !== 1 && r !== 2) throw new Error(`File permission (${p}) was not granted`);
   }
 }
@@ -131,6 +133,35 @@ async function writeRegistry(reg) {
 
 // FileUtils has no text read/write; go through the native module which has
 // plain java.io access to the plugin dir.
+// --- Diagnostic log: EXPORT/planner-log.txt (visible in Files) -------------
+let logPath = null;
+async function getLogPath() {
+  if (logPath) return logPath;
+  try {
+    const exp = ((await FileUtils.getExportPath()) || '').replace(/\/+$/, '');
+    logPath = exp ? `${exp}/planner-log.txt` : null;
+  } catch { logPath = null; }
+  return logPath;
+}
+export async function log(msg) {
+  try {
+    const p = await getLogPath();
+    if (!p) return;
+    const t = new Date().toISOString().slice(11, 19);
+    await NativeModules.PlannerRender.appendText(p, `${t} ${msg}\n`);
+  } catch { /* never let logging break the job */ }
+}
+export async function readLog() {
+  const p = await getLogPath();
+  if (!p) return '(no export folder)';
+  const txt = (await NativeModules.PlannerRender.readText(p)) || '';
+  return txt.split('\n').slice(-25).join('\n') || '(log is empty)';
+}
+export async function clearLog() {
+  const p = await getLogPath();
+  if (p) await NativeModules.PlannerRender.writeText(p, '');
+}
+
 async function readTextFile(path) {
   return NativeModules.PlannerRender.readText(path);
 }
@@ -218,10 +249,13 @@ async function insertPageLinks(model, page, notePath, W, H) {
  * Returns { notePath, pages }.
  */
 export async function createPlanner(year, onProgress = () => {}) {
+  await log(`createPlanner(${year}) start`);
   await ensurePermissions();
+  await log('permissions ok');
   const model = buildYear(year);
   const total = model.pages.length;
   const { noteDir, styleDir } = await resolveRoots();
+  await log(`roots: note=${noteDir} style=${styleDir}`);
   const notePath = `${noteDir}/Planner ${year}.note`;
   if (await FileUtils.exists(notePath)) {
     throw new Error(`"Planner ${year}.note" already exists in Note — rename or delete it first`);
@@ -234,22 +268,26 @@ export async function createPlanner(year, onProgress = () => {}) {
     let devType = 5;
     try { devType = await PluginManager.getDeviceType(); } catch { /* ignore */ }
     let { width: W, height: H } = DEVICE_SIZES[devType] || DEVICE_SIZES[5];
+    await log(`deviceType=${devType} size=${W}x${H}`);
 
     const yearPage = model.pages[0];
     const yearTpl = templatePath(styleDir, year, yearPage);
     onProgress('Rendering templates', 0, total);
     await renderTemplate(model, yearPage, W, H, yearTpl);
+    await log(`rendered first template ${yearTpl}`);
 
     // createNote: try template path then name.
     let created = false, lastErr = '';
     for (const template of [yearTpl, templateName(yearTpl)]) {
       const res = await PluginFileAPI.createNote({ notePath, template, mode: 0, isPortrait: true });
+      await log(`createNote(template=${template}) -> ${JSON.stringify(res)}`);
       if (res && res.success && res.result !== false) { created = true; break; }
       lastErr = (res && res.error && res.error.message) || 'createNote failed';
     }
     if (!created) throw new Error(`createNote: ${lastErr}`);
 
     const size = unwrap(await PluginFileAPI.getPageSize(notePath, 0), 'getPageSize');
+    await log(`getPageSize -> ${JSON.stringify(size)}`);
     if (size.width !== W || size.height !== H) {
       // Device pages are a different size than guessed: re-render page 0.
       W = size.width; H = size.height;
@@ -263,6 +301,7 @@ export async function createPlanner(year, onProgress = () => {}) {
       await renderTemplate(model, page, W, H, tpl);
       await insertPageWithTemplate(notePath, i, tpl);
       if (i % 5 === 0) onProgress('Building pages', i, total);
+      if (i === 1 || i % 50 === 0) await log(`built page ${i}/${total}`);
     }
     const count = unwrap(await PluginFileAPI.getNoteTotalPageNum(notePath), 'getNoteTotalPageNum');
     if (count !== total) throw new Error(`expected ${total} pages, note has ${count}`);
@@ -271,6 +310,7 @@ export async function createPlanner(year, onProgress = () => {}) {
     for (let i = 0; i < total; i++) {
       await insertPageLinks(model, model.pages[i], notePath, W, H);
       if (i % 5 === 0) onProgress('Adding links', i, total);
+      if (i === 0 || i % 50 === 0) await log(`links page ${i}/${total}`);
     }
 
     // --- Phase 4: registry --------------------------------------------------
@@ -278,7 +318,11 @@ export async function createPlanner(year, onProgress = () => {}) {
     reg[notePath] = { year, total, width: W, height: H };
     await writeRegistry(reg);
     onProgress('Done', total, total);
+    await log(`DONE ${notePath}`);
     return { notePath, pages: total };
+  } catch (e) {
+    await log(`FAILED: ${e && e.stack ? e.stack : e}`);
+    throw e;
   } finally {
     try { PluginCommAPI.setSystemDormancyState(false); } catch { /* ignore */ }
   }

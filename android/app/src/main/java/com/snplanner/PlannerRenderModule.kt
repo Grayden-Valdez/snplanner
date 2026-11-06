@@ -127,4 +127,16 @@ class PlannerRenderModule(reactContext: ReactApplicationContext) :
       promise.reject("EWRITE", e.message ?: e.toString(), e)
     }
   }
+
+  @ReactMethod
+  fun appendText(path: String, text: String, promise: Promise) {
+    try {
+      val f = File(path)
+      f.parentFile?.mkdirs()
+      f.appendText(text, Charsets.UTF_8)
+      promise.resolve(true)
+    } catch (e: Throwable) {
+      promise.reject("EAPPEND", e.message ?: e.toString(), e)
+    }
+  }
 }

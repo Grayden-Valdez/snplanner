@@ -21,6 +21,9 @@ import * as planner from './src/planner';
 
 type Progress = (stage: string, done: number, total: number) => void;
 const createPlanner: (year: number, p: Progress) => Promise<{ notePath: string; pages: number }> = planner.createPlanner as any;
+const readLog: () => Promise<string> = planner.readLog as any;
+const clearLog: () => Promise<void> = planner.clearLog as any;
+const logLine: (m: string) => Promise<void> = planner.log as any;
 const syncMarks: (scope: 'month' | 'all', p: Progress) => Promise<{ added: number; removed: number; inked: number; scanned: number }> = planner.syncMarks as any;
 
 function App(): React.JSX.Element {
@@ -36,13 +39,14 @@ function App(): React.JSX.Element {
     if (busy) return;
     setBusy(true);
     setStatus(`${label}…`);
+    clearLog().catch(() => {});
+    logLine(`UI: ${label}`).catch(() => {});
     task()
       .then(
         (msg: string) => {
           setStatus(msg);
           ToastAndroid.showWithGravity(msg, ToastAndroid.LONG, ToastAndroid.BOTTOM);
           setBusy(false);
-          PluginManager.closePluginView().catch(() => {});
         },
         (err: unknown) => {
           const message = err instanceof Error ? err.message : String(err);
@@ -114,6 +118,12 @@ function App(): React.JSX.Element {
       </View>
 
       {status ? <Text style={styles.status}>{status}</Text> : null}
+
+      <Pressable
+        onPress={() => readLog().then(setStatus, (e) => setStatus(`log: ${e}`))}
+        style={styles.cancel}>
+        <Text style={styles.cancelText}>Show log</Text>
+      </Pressable>
 
       <Pressable onPress={() => PluginManager.closePluginView().catch(() => {})} style={styles.cancel} disabled={busy}>
         <Text style={styles.cancelText}>{busy ? 'Working…' : 'Close'}</Text>
