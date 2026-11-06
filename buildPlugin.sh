@@ -99,7 +99,7 @@ new_plugin_config() {
   "desc": "$PACKAGE_DESCRIPTION",
   "iconPath": "",
   "versionName": "$PACKAGE_VERSION",
-  "versionCode": "4",
+  "versionCode": "5",
   "pluginID": "$plugin_id",
   "pluginKey": "$PACKAGE_NAME",
   "jsMainPath": "index"

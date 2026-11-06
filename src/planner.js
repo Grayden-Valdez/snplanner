@@ -73,10 +73,12 @@ function dirname(p) {
   return i > 0 ? p.slice(0, i) : p;
 }
 
+const Native = () => NativeModules.PlannerRender;
+
 async function firstExisting(candidates) {
   for (const c of candidates) {
     try {
-      if (await FileUtils.exists(c)) return c;
+      if (await Native().isDir(c)) return c;
     } catch {
       // ignore
     }
@@ -84,26 +86,28 @@ async function firstExisting(candidates) {
   return null;
 }
 
-/** Resolves the Supernote root folders: { root, noteDir, styleDir }. */
+/**
+ * Resolves the Supernote root folders: { root, noteDir, styleDir }.
+ * Uses only getExportPath() (known to work on current firmware) plus plain
+ * java.io checks in the native module; avoids FileUtils.getExternalDirPath /
+ * FileUtils.exists, which terminate the plugin on Chauvet 3.31.
+ */
 async function resolveRoots() {
+  await log('resolveRoots: getExportPath');
   const exportDir = (await FileUtils.getExportPath()) || '';
+  await log(`resolveRoots: exportDir=${exportDir}`);
   const trimmed = exportDir.replace(/\/+$/, '');
-  const roots = [dirname(trimmed)];
-  try {
-    const ext = await FileUtils.getExternalDirPath();
-    if (Array.isArray(ext)) {
-      for (const e of ext) {
-        roots.push(e.replace(/\/+$/, ''));
-        roots.push(`${e.replace(/\/+$/, '')}/Supernote`);
-      }
-    }
-  } catch {
-    // ignore
-  }
+  const roots = [];
+  if (trimmed) roots.push(dirname(trimmed));
+  roots.push('/storage/emulated/0/Supernote', '/sdcard/Supernote', '/storage/emulated/0', '/sdcard');
+  await log(`resolveRoots: candidates=${roots.join(' | ')}`);
   const styleDir = await firstExisting(roots.map((r) => `${r}/MyStyle`));
   const noteDir = await firstExisting(roots.map((r) => `${r}/Note`));
+  await log(`resolveRoots: style=${styleDir} note=${noteDir}`);
   if (!styleDir || !noteDir) {
-    throw new Error(`cannot locate MyStyle/Note folders (export dir: ${exportDir})`);
+    let listing = '';
+    try { listing = await Native().listDir(roots[0]); } catch { /* ignore */ }
+    throw new Error(`cannot locate MyStyle/Note folders (export dir: ${exportDir}; ${roots[0]} contains: ${listing})`);
   }
   return { root: dirname(styleDir), noteDir, styleDir };
 }
@@ -118,7 +122,7 @@ async function pluginFile(name) {
 async function readRegistry() {
   try {
     const path = await pluginFile('planners.json');
-    if (!(await FileUtils.exists(path))) return {};
+    if (!(await Native().exists(path))) return {};
     const txt = await readTextFile(path);
     return txt ? JSON.parse(txt) : {};
   } catch {
@@ -257,10 +261,11 @@ export async function createPlanner(year, onProgress = () => {}) {
   const { noteDir, styleDir } = await resolveRoots();
   await log(`roots: note=${noteDir} style=${styleDir}`);
   const notePath = `${noteDir}/Planner ${year}.note`;
-  if (await FileUtils.exists(notePath)) {
+  if (await Native().exists(notePath)) {
     throw new Error(`"Planner ${year}.note" already exists in Note — rename or delete it first`);
   }
-  await FileUtils.makeDir(`${styleDir}/Planner ${year}`);
+  await Native().mkdirs(`${styleDir}/Planner ${year}`);
+  await log('style folder ready');
 
   try { PluginCommAPI.setSystemDormancyState(true); } catch { /* ignore */ }
   try {

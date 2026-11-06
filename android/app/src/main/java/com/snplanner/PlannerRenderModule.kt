@@ -139,4 +139,30 @@ class PlannerRenderModule(reactContext: ReactApplicationContext) :
       promise.reject("EAPPEND", e.message ?: e.toString(), e)
     }
   }
+
+  /** Plain java.io file checks, independent of the host SDK. */
+  @ReactMethod
+  fun exists(path: String, promise: Promise) {
+    try { promise.resolve(File(path).exists()) } catch (e: Throwable) { promise.resolve(false) }
+  }
+
+  @ReactMethod
+  fun isDir(path: String, promise: Promise) {
+    try { promise.resolve(File(path).isDirectory) } catch (e: Throwable) { promise.resolve(false) }
+  }
+
+  @ReactMethod
+  fun mkdirs(path: String, promise: Promise) {
+    try { val f = File(path); promise.resolve(f.isDirectory || f.mkdirs()) } catch (e: Throwable) {
+      promise.reject("EMKDIR", e.message ?: e.toString(), e)
+    }
+  }
+
+  @ReactMethod
+  fun listDir(path: String, promise: Promise) {
+    try {
+      val names = File(path).list()?.sorted()?.joinToString(", ") ?: "(not a directory)"
+      promise.resolve(names)
+    } catch (e: Throwable) { promise.resolve("(error: ${e.message})") }
+  }
 }
