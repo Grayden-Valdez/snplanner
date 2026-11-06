@@ -1,3 +1,4 @@
+// Coded with Claude (https://claude.com/claude-code). No human wrote a line of this — review accordingly before relying on it.
 /**
  * Page layouts. Pure JS: given the calendar model and a page, returns
  *   {

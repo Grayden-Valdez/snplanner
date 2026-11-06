@@ -1,3 +1,4 @@
+// Coded with Claude (https://claude.com/claude-code). No human wrote a line of this — review accordingly before relying on it.
 /**
  * Planner — registers a sidebar button on NOTE files. Tapping it opens the
  * plugin view (App.tsx), which creates planners and syncs ✓ marks.

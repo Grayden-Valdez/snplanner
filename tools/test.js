@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Coded with Claude (https://claude.com/claude-code). No human wrote a line of this — review accordingly before relying on it.
 /** Sanity checks for the calendar model and layouts across several years. */
 const assert = require('assert');
 const { buildYear, monthGrid } = require('../src/calendar');

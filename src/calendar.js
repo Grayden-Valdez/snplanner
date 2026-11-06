@@ -1,3 +1,4 @@
+// Coded with Claude (https://claude.com/claude-code). No human wrote a line of this — review accordingly before relying on it.
 /**
  * Calendar model for the planner. Pure JS, no RN imports, so it can run in
  * node for previews and tests.

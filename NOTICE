@@ -1,0 +1,7 @@
+snplanner — Supernote yearly planner plugin
+
+Coded with Claude (https://claude.com/claude-code). No human wrote a line of
+this — review accordingly before relying on it.
+
+Concept, requirements and on-device testing: Grayden Valdez.
+Scaffold derived from jpmoo/compass (https://github.com/jpmoo/compass).

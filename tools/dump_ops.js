@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Coded with Claude (https://claude.com/claude-code). No human wrote a line of this — review accordingly before relying on it.
 /**
  * Dumps layout ops + links for selected pages as JSON, for tools/preview.py.
  *   node tools/dump_ops.js 2027 out.json Y2027 Q2 M5 W23 2027-06-06

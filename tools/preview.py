@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Coded with Claude (https://claude.com/claude-code). No human wrote a line of this — review accordingly before relying on it.
 """Renders layout ops (from tools/dump_ops.js) to PNGs with Pillow.
 
 Mirrors the Kotlin renderer: template ops first, then link labels drawn the

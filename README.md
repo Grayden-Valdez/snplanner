@@ -1,5 +1,10 @@
 # Planner — Supernote yearly planner plugin
 
+> **Coded with [Claude](https://claude.com/claude-code).** No human wrote a line of this —
+> review accordingly before relying on it. The concept, requirements and on-device
+> testing are by [Grayden Valdez](https://github.com/Grayden-Valdez); Claude wrote the code
+> to that spec and direction.
+
 A Supernote plugin (React Native + the official `sn-plugin-lib` SDK) that
 generates a fully linked yearly planner as a single `.note` file and keeps
 the overview pages in sync with where you have written.
